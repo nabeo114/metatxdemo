@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Transaction Demo</title>
+    <style>
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+            opacity: 0.8;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            user-select: none;
+        }
+
+        .load-circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 10px solid rgba(255, 255, 255, 0.5);
+            border-top-color: rgba(255, 255, 255, 1);
+            animation: rotate 1s linear infinite;
+        }
+
+        @keyframes rotate {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.8/vue.global.prod.min.js"></script>
+    <script src="./script.js" type="module"></script>
+</head>
+
+<body>
+    <main id="main">
+        <div class="container font-monospace">
+            <div class="py-3 rounded">
+                <div class="h1">Meta Transaction Demo</div>
+            </div>
+            <!-- Main -->
+            <div class="row my-2">
+                <div class="col-8">
+                    <input class="form-control" v-model="providerUrl">
+                </div>
+                <div class="col-4">
+                    <div class="btn btn-primary" @Click="connect">Connect</div>
+                </div>
+            </div>
+            <div class="row" v-if="wallets.length > 0">
+                <hr class="my-2">
+                <!-- Wallets -->
+                <div class="h3">Wallets</div>
+                <table class="table user-select-none">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="col-sm-3">Name</th>
+                            <th scope="col" class="col-sm-3">Address</th>
+                            <th scope="col" class="text-end col-sm-3 px-3">Coin</th>
+                            <th scope="col" class="text-end col-sm-3 px-3">Token</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="wallet in wallets">
+                            <td v-text="wallet.name"></td>
+                            <td>
+                                <span v-text="shortAddress(wallet.address)" :title="wallet.address"></span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                    class="bi bi-copy mx-2" viewBox="0 0 16 16" @click="copyAddress(wallet.address)"
+                                    style="cursor: pointer;">
+                                    <path fill-rule="evenodd"
+                                        d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V2Zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H6ZM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1H2Z" />
+                                </svg>
+                            </td>
+                            <td class="text-end px-3">
+                                <div v-text="wallet.balance" :title="formatEther(wallet.balance)"></div>
+                                <div v-text="wallet.balanceOld" class="text-secondary"
+                                    :title="formatEther(wallet.balanceOld)"></div>
+                                <div v-text="diffBalance(wallet)" :class="[wallet.balanceText]"
+                                    :title="formatEther(diffBalance(wallet))"></div>
+                            </td>
+                            <td class="text-end px-3">
+                                <div v-text="wallet.token"></div>
+                                <div v-text="wallet.tokenOld" class="text-secondary"></div>
+                                <div v-text="diffToken(wallet)" :class="[wallet.tokenText]"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end px-3">
+                                <div class="btn btn-primary mx-1" @click="updateCoin">Update Coin</div>
+                            </td>
+                            <td class="text-end px-3">
+                                <div class="btn btn-primary mx-1" @click="updateToken"
+                                    v-if="sampleRecipientContractAddress != ''">Update Token</div>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <hr class="my-2">
+                <!-- Fauce -->
+                <div class="h3">Faucet</div>
+                <div class="row my-3">
+                    <div class="col-8">
+                        <select class="form-select" v-model="faucetAddress">
+                            <option v-for="wallet in wallets" :value="wallet.address"
+                                v-text="wallet.name + ' (' + wallet.address + ')'"></option>
+                        </select>
+
+                    </div>
+                    <div class="col-4">
+                        <div class="btn btn-primary" @click="faucet">Faucet</div>
+                    </div>
+                </div>
+                <hr class="my-2">
+                <!-- Deploy -->
+                <div class="h3">Deploy</div>
+                <div class="row">
+                    <div class="text-end">
+                        <div class="btn btn-primary" @click="deploy">Deploy</div>
+                    </div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Contract</th>
+                                <th>Contract Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th>SampleForwarder</th>
+                                <td v-text="sampleForwarderContractAddress"></td>
+                            </tr>
+                            <tr>
+                                <th>SampleRecipient</th>
+                                <td v-text="sampleRecipientContractAddress"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-if="sampleRecipientContractAddress != ''">
+                    <hr class="my-2">
+                    <!-- Mint Token -->
+                    <div class="h3">Mint Token</div>
+                    <div class="row">
+                        <div class="col-2">
+                            <select class="form-select" v-model="mintAddress">
+                                <option selected value="all">All</option>
+                                <option v-for="wallet in wallets" :value="wallet.address" v-text="wallet.name"></option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <input class="form-control text-end" type="number" v-model="mintAmount">
+                        </div>
+                        <div class="col-2">
+                            <div class="btn btn-primary" @click="mintToken">Mint Token</div>
+                        </div>
+                    </div>
+                    <hr class="my-2">
+                    <!-- Send Meta Transaction -->
+                    <div class="h3">Send Meta Transaction &lt;transfer&gt;</div>
+                    <!-- Sign -->
+                    <div class="row">
+                        <div class="col-3">
+                            From:
+                            <select class="form-select" v-model="transferFrom">
+                                <option v-for="(wallet, index) in wallets" :value="index" v-text="wallet.name">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            To:
+                            <select class="form-select" v-model="transferTo">
+                                <option v-for="(wallet, index) in wallets" :value="index" v-text="wallet.name">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            Amount:
+                            <input class="form-control text-end" type="number" min="1" v-model="transferAmount">
+                        </div>
+                        <div class="col-3 position-relative">
+                            <div class="btn btn-primary position-absolute bottom-0 start-0"
+                                @click="signMetaTransaction">
+                                Sign Meta Transaction</div>
+                        </div>
+                    </div>
+                    <div v-if="request.signature != ''">
+                        <div class="h4 my-3">Signed by Transaction Signer</div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="col-sm-2">Key</th>
+                                    <th scope="col" class="col-sm-5">Value</th>
+                                    <th scope="col" class="col-sm-5">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">from</th>
+                                    <td v-text="request.from"></td>
+                                    <td>
+                                        <div>
+                                            An address to operate on behalf of.
+                                            It is required to be equal to the request signer.
+                                        </div>
+                                        <div class="text-primary" v-text="whoAddress(request.from)"></div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">to</th>
+                                    <td v-text="request.to"></td>
+                                    <td>
+                                        <div>The address that should be called.</div>
+                                        <div class="text-primary">SampleForwarder Contract Address</div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">value</th>
+                                    <td v-text="request.value"></td>
+                                    <td> The amount of native token to attach with the requested call. </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">gas</th>
+                                    <td v-text="request.gas"></td>
+                                    <td> The amount of gas limit that will be forwarded with the requested call. </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">deadline</th>
+                                    <td v-text="request.deadline"></td>
+                                    <td>
+                                        <div>A timestamp after which the request is not executable anymore.</div>
+                                        <div class="text-primary" v-text="formatDate(request.deadline)"></div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">data</th>
+                                    <td>
+                                        <div v-text="short(request.data)" :title="request.data"></div>
+                                    </td>
+                                    <td>Encoded `msg.data` to send with the requested call.</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">signature</th>
+                                    <td>
+                                        <div v-text="short(request.signature)" :title="request.signature"></div>
+                                    </td>
+                                    <td>EIP-712: Typed structured data hashing and signing</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div>
+                            <div class="h4 my-3">Send transaction by Gas Relay</div>
+                            <div class="btn btn-primary" @click="sendMetaTransaction">Send Meta Transaction</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <div class="my-5">&nbsp;</div>
+        </div>
+        <!-- Toast -->
+        <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 11">
+            <div id="toast" class="toast align-items-center bg-primary-subtle border-0" role="alert"
+                aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body" v-text="toast.message"> </div>
+                    <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"
+                        aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+        <!-- Modal -->
+        <div id="modal" class="modal fade" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+            aria-labelledby="staticBackdropLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content bg-danger-subtle">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="staticBackdropLabel" v-text="modal.title"></h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body overflow-auto" v-text="modal.message" style="white-space: pre-line;"></div>
+                </div>
+            </div>
+        </div>
+        <!-- Loading -->
+        <div class="loading" v-show="loading">
+            <div class="load-circle"></div>
+        </div>
+    </main>
+</body>
+
+</html>
