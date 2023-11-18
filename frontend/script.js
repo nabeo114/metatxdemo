@@ -182,6 +182,7 @@ const MainApp = {
             this.modal.modal.show();
         },
         async connect() {
+            this.loading = true;
             try {
                 this.network.name = "";
                 this.network.chainId = "";
@@ -245,6 +246,7 @@ const MainApp = {
                 console.log("checkConnect err", err);
                 this.showModal("Failed to connect to provider", err.message);
             }
+            this.loading = false;
         },
         async copyAddress(address) {
             console.log("copyAddress", address);
