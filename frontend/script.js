@@ -1,8 +1,8 @@
 "use strict";
 
 import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
-import SampleRecipientJson from "./SampleRecipient.json" assert {type: "json"};
-import SampleForwarderJson from "./SampleForwarder.json" assert {type: "json"};
+import SampleRecipientJson from "./SampleRecipient.json" with {type: "json"};
+import SampleForwarderJson from "./SampleForwarder.json" with {type: "json"};
 
 async function init() {
     console.log("init", ethers.version);
